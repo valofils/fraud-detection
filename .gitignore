@@ -1,0 +1,33 @@
+# Virtual environment
+fraud_env/
+
+# MLflow
+mlartifacts/
+mlruns/
+mlflow.db
+
+# Large data files
+creditcard.csv
+creditcard_clean.csv
+creditcard_features.csv
+
+# Model binaries (track with DVC or release assets)
+models/*.joblib
+models/backup/
+
+# Results / splits (reproducible from pipeline)
+results/test_split*.csv
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+*.zip
+
+*.zip

@@ -1,0 +1,95 @@
+# ── Fraud Detection Stack ─────────────────────────────────────────────────────
+# Services:
+#   api        — FastAPI scoring endpoint  (port 8000)
+#   dashboard  — Streamlit monitoring UI   (port 8501)
+#   mlflow     — MLflow tracking server    (port 5000)
+#
+# Usage:
+#   docker compose up --build          # first run
+#   docker compose up -d               # detached
+#   docker compose down -v             # tear down + remove volumes
+# ---------------------------------------------------------------------------
+
+services:
+
+  # ── FastAPI scoring API ───────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: fraud-api
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount models read-only so the container uses host-updated weights
+      - ./models:/app/models:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - fraud-net
+
+  # ── Streamlit dashboard ───────────────────────────────────────────────────
+  dashboard:
+    image: python:3.11-slim
+    container_name: fraud-dashboard
+    working_dir: /app
+    command: >
+      bash -c "pip install --quiet streamlit pandas numpy requests &&
+               streamlit run fraud_dashboard_phase7b.py
+               --server.port=8501
+               --server.address=0.0.0.0
+               --server.headless=true
+               --browser.gatherUsageStats=false"
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./fraud_dashboard_phase7b.py:/app/fraud_dashboard_phase7b.py:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - fraud-net
+
+  # ── MLflow tracking server ────────────────────────────────────────────────
+  mlflow:
+    image: python:3.11-slim
+    container_name: fraud-mlflow
+    working_dir: /mlflow
+    command: >
+      bash -c "pip install --quiet mlflow &&
+               mlflow server
+               --host 0.0.0.0
+               --port 5000
+               --backend-store-uri sqlite:///mlflow.db
+               --default-artifact-root /mlflow/artifacts"
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-db:/mlflow
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    networks:
+      - fraud-net
+
+# ── Volumes ───────────────────────────────────────────────────────────────────
+volumes:
+  mlflow-db:
+    driver: local
+
+# ── Network ───────────────────────────────────────────────────────────────────
+networks:
+  fraud-net:
+    driver: bridge
